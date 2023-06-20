@@ -256,6 +256,7 @@ module SSE
           end
         end
         begin
+          @logger.info { "resetting http" }
           reset_http
         rescue StandardError => e
           log_and_dispatch_error(e, "Unexpected error while closing stream")
@@ -322,10 +323,12 @@ module SSE
           else
             begin
               data = cxn.readpartial
+              @logger.info { "data #{data}" }
               # readpartial gives us a string, which may not be a valid UTF-8 string because a
               # multi-byte character might not yet have been fully read, but BufferedLineReader
               # will handle that.
             rescue HTTP::TimeoutError 
+              @logger.info { "timeout" }
               # For historical reasons, we rethrow this as our own type
               raise Errors::ReadTimeoutError.new(@read_timeout)
             end
@@ -334,6 +337,7 @@ module SSE
           end
         end
       end
+      @logger.info { "chunks #{chunks}" }
       event_parser = Impl::EventParser.new(Impl::BufferedLineReader.lines_from(chunks), @last_id)
 
       event_parser.items.each do |item|
