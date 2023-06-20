@@ -312,6 +312,7 @@ module SSE
     # Pipe the output of the StreamingHTTPConnection into the EventParser, and dispatch events as
     # they arrive.
     def read_stream(cxn)
+      @logger.info { "reading" }
       # Tell the Backoff object that the connection is now in a valid state. It uses that information so
       # it can automatically reset itself if enough time passes between failures.
       @backoff.mark_success
@@ -319,6 +320,7 @@ module SSE
       chunks = Enumerator.new do |gen|
         loop do
           if @stopped.value
+            @logger.info { "stopped" }
             break
           else
             begin
