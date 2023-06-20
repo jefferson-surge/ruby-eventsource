@@ -1,4 +1,5 @@
 require "ld-eventsource/impl/backoff"
+require "ld-eventsource/impl/basic_event_parser"
 require "ld-eventsource/impl/buffered_line_reader"
 require "ld-eventsource/impl/event_parser"
 require "ld-eventsource/events"
@@ -99,7 +100,8 @@ module SSE
           last_event_id: nil,
           proxy: nil,
           logger: nil,
-          socket_factory: nil)
+          socket_factory: nil,
+          parse: true)
       @uri = URI(uri)
       @stopped = Concurrent::AtomicBoolean.new(false)
 
@@ -109,6 +111,7 @@ module SSE
       @http_method = http_method
       @http_payload = http_payload
       @logger = logger || default_logger
+      @parse = parse
       http_client_options = {
         ssl: {
           verify_mode: OpenSSL::SSL::VERIFY_NONE # Ignore SSL verification
@@ -256,6 +259,7 @@ module SSE
           end
         end
         begin
+          @logger.info { "resetting http" }
           reset_http
         rescue StandardError => e
           log_and_dispatch_error(e, "Unexpected error while closing stream")
@@ -282,21 +286,25 @@ module SSE
           if cxn.status.code == 200
             content_type = cxn.headers["content-type"]
             if content_type && content_type.start_with?("text/event-stream")
+              @logger.info { "connected" }
               return cxn  # we're good to proceed
             else
+              @logger.info { "second branch" }
               reset_http
               err = Errors::HTTPContentTypeError.new(cxn.headers["content-type"])
               @on[:error].call(err)
               @logger.warn { "Event source returned unexpected content type '#{cxn.headers["content-type"]}'" }
             end
           else
+            @logger.info { "error status branch" }
             body = cxn.to_s  # grab the whole response body in case it has error details
             reset_http
             @logger.info { "Server returned error status #{cxn.status.code}" }
             err = Errors::HTTPStatusError.new(cxn.status.code, body)
             @on[:error].call(err)
           end
-        rescue
+        rescue => e
+          @logger.info { "error #{e}" }
           reset_http
           raise  # will be handled in run_stream
         end
@@ -307,6 +315,7 @@ module SSE
     # Pipe the output of the StreamingHTTPConnection into the EventParser, and dispatch events as
     # they arrive.
     def read_stream(cxn)
+      @logger.info { "reading" }
       # Tell the Backoff object that the connection is now in a valid state. It uses that information so
       # it can automatically reset itself if enough time passes between failures.
       @backoff.mark_success
@@ -314,14 +323,17 @@ module SSE
       chunks = Enumerator.new do |gen|
         loop do
           if @stopped.value
+            @logger.info { "stopped" }
             break
           else
             begin
               data = cxn.readpartial
+              @logger.info { "data #{data}" }
               # readpartial gives us a string, which may not be a valid UTF-8 string because a
               # multi-byte character might not yet have been fully read, but BufferedLineReader
               # will handle that.
             rescue HTTP::TimeoutError 
+              @logger.info { "timeout" }
               # For historical reasons, we rethrow this as our own type
               raise Errors::ReadTimeoutError.new(@read_timeout)
             end
@@ -330,7 +342,12 @@ module SSE
           end
         end
       end
-      event_parser = Impl::EventParser.new(Impl::BufferedLineReader.lines_from(chunks), @last_id)
+      @logger.info { "chunks #{chunks}" }
+      if @parse
+        event_parser = Impl::EventParser.new(Impl::BufferedLineReader.lines_from(chunks), @last_id)
+      else
+        event_parser = Impl::BasicEventParser.new(chunks)
+      end
 
       event_parser.items.each do |item|
         return if @stopped.value
