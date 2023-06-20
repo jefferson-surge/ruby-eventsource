@@ -340,7 +340,8 @@ module SSE
         end
       end
       @logger.info { "chunks #{chunks}" }
-      event_parser = Impl::EventParser.new(Impl::BufferedLineReader.lines_from(chunks), @last_id)
+      # event_parser = Impl::EventParser.new(Impl::BufferedLineReader.lines_from(chunks), @last_id)
+      event_parser = Impl::BasicEventParser.new(chunks)
 
       event_parser.items.each do |item|
         return if @stopped.value
