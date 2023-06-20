@@ -282,21 +282,25 @@ module SSE
           if cxn.status.code == 200
             content_type = cxn.headers["content-type"]
             if content_type && content_type.start_with?("text/event-stream")
+              @logger.info { "connected" }
               return cxn  # we're good to proceed
             else
+              @logger.info { "second branch" }
               reset_http
               err = Errors::HTTPContentTypeError.new(cxn.headers["content-type"])
               @on[:error].call(err)
               @logger.warn { "Event source returned unexpected content type '#{cxn.headers["content-type"]}'" }
             end
           else
+            @logger.info { "error status branch" }
             body = cxn.to_s  # grab the whole response body in case it has error details
             reset_http
             @logger.info { "Server returned error status #{cxn.status.code}" }
             err = Errors::HTTPStatusError.new(cxn.status.code, body)
             @on[:error].call(err)
           end
-        rescue
+        rescue => e
+          @logger.info { "error #{e}" }
           reset_http
           raise  # will be handled in run_stream
         end
