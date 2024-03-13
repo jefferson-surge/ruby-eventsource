@@ -285,6 +285,7 @@ module SSE
           if cxn.status.code == 200
             content_type = cxn.headers["content-type"]
             if content_type
+              @logger.info { "response #{cxn.to_s}" }
               return cxn  # we're good to proceed
             else
               reset_http
