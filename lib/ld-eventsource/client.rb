@@ -285,6 +285,7 @@ module SSE
           if cxn.status.code == 200
             content_type = cxn.headers["content-type"]
             if content_type
+              @logger.warn { "here is a warn that we got a response" }
               @logger.info { "response #{cxn.to_s}" }
               return cxn  # we're good to proceed
             else
@@ -294,6 +295,7 @@ module SSE
               @logger.warn { "Event source returned unexpected content type '#{cxn.headers["content-type"]}'" }
             end
           else
+            @logger.warn { "here is a warn that we got a non-200" }
             body = cxn.to_s  # grab the whole response body in case it has error details
             reset_http
             @logger.info { "Server returned error status #{cxn.status.code}" }
