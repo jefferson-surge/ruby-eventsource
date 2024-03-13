@@ -284,7 +284,7 @@ module SSE
           cxn = @http_client.request(@http_method, @uri, opts)
           if cxn.status.code == 200
             content_type = cxn.headers["content-type"]
-            if content_type && content_type.start_with?("text/event-stream")
+            if content_type
               return cxn  # we're good to proceed
             else
               reset_http
