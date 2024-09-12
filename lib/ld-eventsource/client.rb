@@ -282,7 +282,7 @@ module SSE
           opts = { headers: build_headers }
           opts[:json] = @http_payload unless @http_payload == {}
           cxn = @http_client.request(@http_method, @uri, opts)
-          if cxn.status.code == 200
+          if cxn.status.code == 200 || cxn.status.code == 201
             content_type = cxn.headers["content-type"]
             if content_type && content_type.start_with?("text/event-stream")
               return cxn  # we're good to proceed
